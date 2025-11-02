@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
   "dataset>=1.6.2",
   "pydantic-settings>=2.11.0",
+  "sqlalchemy>=1.4.54",
   "typed-argument-parser>=1.11.0",
 ]
 

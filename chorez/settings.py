@@ -50,9 +50,13 @@ class DatabaseSettings(BaseSettings):
 
 class Settings(BaseSettings):
     task: TaskSettings = TaskSettings()
+    database: DatabaseSettings = DatabaseSettings()
 
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         env_prefix="CHOREZ_",
     )
+
+
+settings = Settings()
