@@ -44,13 +44,13 @@ class Database:
                 _ = session.merge(task)
             session.commit()
 
-    def list_tasks(self, filter: str = "all") -> Sequence[models.Task]:
-        tasks: Sequence[models.Task]
+    def list_tasks(self, filter: str = "1=1") -> Sequence[models.Task]:
+        stmt = sa.select(models.Task)
+        if filter:
+            stmt = stmt.where(sa.text(filter))
+        stmt = stmt.order_by(models.Task.id)
         with self.Session() as session:
-            tasks = session.scalars(
-                sa.select(models.Task).order_by(models.Task.id)
-            ).all()
-        return tasks
+            return session.scalars(stmt).all()
 
     def clear_tasks(self) -> int:
         with self.Session() as session:
