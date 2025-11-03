@@ -1,13 +1,20 @@
-from tap import Tap
+import sys
+from chorez.chorez import Chorez
+from chorez.cli.root_cli import RootCLI
 
 
-class ArgParser(Tap):
-    pass
-
-
-def main() -> None:
-    pass
+def main(argv: list[str], *, chorez: Chorez) -> None:
+    parsed = RootCLI().parse_args(argv)
+    if hasattr(parsed, "run"):
+        parsed.run(parsed, chorez)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
+    else:
+        print(parsed)
 
 
 if __name__ == "__main__":
-    main()
+
+    def mainlet() -> None:
+        chorez = Chorez()
+        main(sys.argv[1:], chorez=chorez)
+
+    mainlet()

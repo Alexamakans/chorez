@@ -1,0 +1,22 @@
+# plan for commands, maybe?
+
+```plain
+tt task show <id|search>
+tt task add [--title TITLE] [--desc DESC] [--label LABEL ...] [--field KEY=VALUE ...]
+tt task edit <id> [--title TITLE] [--desc DESC] [--label +LABEL|-LABEL ...] [--field KEY=VALUE ...] [--field ~KEY]
+tt task close <id ...> | --filter EXPR
+tt task reopen <id ...> | --filter EXPR
+tt task rm <id ...> | --filter EXPR
+tt task export [--filter EXPR] [--columns COLS] [--format json|csv] [--out FILE]
+tt task select <id|search>
+tt task active
+
+tt time start [<task>] [-s START | --start START] [--note NOTE]
+tt time stop [-e END | --end END] [--note NOTE]
+tt time switch <task> [--note NOTE]
+tt time resume [<task>] [--note NOTE]
+tt time log [<task>] -s START | --start START -e END | --end END [--note NOTE]
+tt time edit <entry-id> [-s START | --start START] [-e END | --end END] [--note NOTE]
+tt time list [-s START | --start START] [-e END | --end END] [--filter EXPR]
+tt time status
+```

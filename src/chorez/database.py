@@ -1,6 +1,6 @@
 from collections.abc import Sequence
-from typing import final
-from sqlalchemy.orm import sessionmaker
+from typing import Any, final
+from sqlalchemy.orm import InstrumentedAttribute, sessionmaker
 from chorez import models
 import sqlalchemy as sa
 
@@ -20,13 +20,31 @@ class Database:
     def save_task(self, task: models.Task) -> None:
         with self.Session() as session:
             state = sa.inspect(task)
-            if state.transient:
-                session.add(task)
+            if state.transient or task.id is not None:
+                existing = session.scalars(
+                    sa.select(models.Task)
+                    .where(
+                        sa.and_(
+                            models.Task.name == task.name,
+                            _eq(models.Task.source_id, task.source_id),
+                            _eq(models.Task.source_url, task.source_url),
+                        )
+                    )
+                    .limit(1)
+                ).first()
+
+                if existing is not None:
+                    if task.id is not None and task.id != existing.id:
+                        raise ValueError("ID mismatch")
+                    task.id = existing.id
+                    _ = session.merge(task)
+                else:
+                    session.add(task)
             else:
                 _ = session.merge(task)
             session.commit()
 
-    def list_tasks(self) -> Sequence[models.Task]:
+    def list_tasks(self, filter: str = "all") -> Sequence[models.Task]:
         tasks: Sequence[models.Task]
         with self.Session() as session:
             tasks = session.scalars(
@@ -40,3 +58,10 @@ class Database:
             deleted = len(result.fetchall())
             session.commit()
             return deleted
+
+
+def _eq(
+    col: InstrumentedAttribute[Any] | sa.ColumnElement[Any],  # pyright: ignore[reportExplicitAny]
+    val: Any,  # pyright: ignore[reportExplicitAny, reportAny]
+) -> sa.ColumnElement[bool]:
+    return col.is_(None) if val is None else col == val
