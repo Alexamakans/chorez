@@ -1,3 +1,4 @@
+import itertools
 import json
 import sys
 from enum import Enum
@@ -9,8 +10,11 @@ from tap import Tap
 from chorez.chorez import Chorez
 from chorez.models import Difficulty, Priority, Task
 
+EXIT_SUCCESS = 0
+EXIT_FAILURE = 1
 
-class Format(Enum):
+
+class Format(str, Enum):
     PRETTY = "pretty"
     JSON = "json"
     YAML = "yaml"
@@ -18,7 +22,7 @@ class Format(Enum):
 
 class TaskShow(Tap):
     format: Format = Format.PRETTY
-    filter: str = "1=1"
+    filter: str = ""
 
     @override
     def configure(self) -> None:
@@ -31,17 +35,23 @@ class TaskShow(Tap):
         self.add_argument("--filter", dest="filter", help="sqlalchemy where clause")  # pyright: ignore[reportUnknownMemberType]
         self.set_defaults(run=self.run)
 
-    def run(self, args: Self, chorez: Chorez) -> None:
+    def run(self, args: Self, chorez: Chorez) -> int:
         tasks = chorez.db.list_tasks(args.filter)
         match args.format:
             case Format.PRETTY:
                 print(f"Found {len(tasks)} tasks:")
-                for task in tasks:
-                    print(f"\t{task!r}")
+                by_priority = itertools.groupby(tasks, lambda e: e.priority)
+                for prio, group in by_priority:
+                    group = list(group)
+                    print(f"\tPrio {prio.value} (count={len(group)})")
+                    for task in group:
+                        print(f"\t\t{task.pretty()}")
             case Format.JSON:
-                print(json.dumps(tasks))
+                task_dicts = [x.toDict() for x in tasks]
+                print(json.dumps(task_dicts, sort_keys=True))
             case Format.YAML:
-                print(yaml.dump(tasks))
+                print(yaml.dump(tasks, sort_keys=True))
+        return EXIT_SUCCESS
 
 
 class TaskAdd(Tap):
@@ -85,7 +95,7 @@ class TaskAdd(Tap):
 
         self.set_defaults(run=self.run)
 
-    def run(self, args: Self, chorez: Chorez) -> None:
+    def run(self, args: Self, chorez: Chorez) -> int:
         task = Task(
             name=args.name,
             priority=args.priority,
@@ -93,6 +103,8 @@ class TaskAdd(Tap):
             tags=args.tags,
         )
         chorez.db.save_task(task)
+        print(f"Added {task.pretty()}")
+        return EXIT_SUCCESS
 
 
 class TaskEdit(Tap):
@@ -147,11 +159,11 @@ class TaskEdit(Tap):
 
         self.set_defaults(run=self.run)
 
-    def run(self, args: Self, chorez: Chorez) -> None:
+    def run(self, args: Self, chorez: Chorez) -> int:
         tasks = chorez.db.list_tasks(f"id={args.id}")
         if len(tasks) == 0:
             print("Task not found", file=sys.stderr)
-            return
+            return EXIT_FAILURE
         assert len(tasks) == 1
         task = tasks[0]
         assert task.id == args.id
@@ -160,19 +172,59 @@ class TaskEdit(Tap):
             print(f"Changed name from {task.name!r} to {args.name!r}")
             task.name = args.name
         if args.priority is not None and task.priority != args.priority:
-            print(f"Changed priority from {task.priority!r} to {args.priority!r}")
+            print(
+                f"Changed priority from {task.priority.value!r} to {args.priority.value!r}"
+            )
             task.priority = args.priority
         if args.difficulty is not None and task.difficulty != args.difficulty:
-            print(f"Changed difficulty from {task.difficulty!r} to {args.difficulty!r}")
+            print(
+                f"Changed difficulty from {task.difficulty.value!r} to {args.difficulty.value!r}"
+            )
             task.difficulty = args.difficulty
         if args.tags is not None and task.tags != args.tags:
+            # + prefix or no prefix -> candidate for adding
+            # - prefix -> candidate for removing
+            def should_add(tag: str) -> bool:
+                if not tag.startswith("-"):
+                    return tag.lstrip("+") in task.tags
+                return False
+
+            def should_remove(tag: str) -> bool:
+                return tag.startswith("-")
+
+            to_add = [tag.lstrip("+") for tag in args.tags if should_add(tag)]
+            to_remove = [tag.lstrip("-") for tag in args.tags if should_remove(tag)]
+
+            task.tags = [tag for tag in task.tags if tag not in to_remove]
+            task.tags.extend(to_add)
             print(f"Changed tags from {task.tags!r} to {args.tags!r}")
-            task.tags = args.tags
         if args.desc is not None and task.desc != args.desc:
             print(f"Changed desc from {task.desc!r} to {args.desc!r}")
             task.desc = args.desc
 
         chorez.db.save_task(task)
+        return EXIT_SUCCESS
+
+
+class TaskRm(Tap):
+    id: int  # pyright: ignore[reportUninitializedInstanceVariable]
+
+    @override
+    def configure(self) -> None:
+        self.add_argument("--id", "-i", dest="id", help="The task to remove's ID")  # pyright: ignore[reportUnknownMemberType]
+
+        self.set_defaults(run=self.run)
+
+    def run(self, args: Self, chorez: Chorez) -> int:
+        filter = f"id={args.id}"
+        tasks = chorez.db.list_tasks(filter)
+        if len(tasks) == 0:
+            print(f"Task with ID {args.id} not found")
+            return EXIT_FAILURE
+        assert len(tasks) == 1
+        assert chorez.db.clear_tasks(filter) == 1
+        print(f"Removed task: {tasks[0].pretty()}")
+        return EXIT_SUCCESS
 
 
 class TaskCLI(Tap):
@@ -182,3 +234,4 @@ class TaskCLI(Tap):
         self.add_subparser("show", TaskShow)  # pyright: ignore[reportUnknownMemberType]
         self.add_subparser("add", TaskAdd)  # pyright: ignore[reportUnknownMemberType]
         self.add_subparser("edit", TaskEdit)  # pyright: ignore[reportUnknownMemberType]
+        self.add_subparser("rm", TaskRm)  # pyright: ignore[reportUnknownMemberType]

@@ -18,6 +18,17 @@ class Database:
         models.Base.metadata.create_all(self.engine)
 
     def save_task(self, task: models.Task) -> None:
+        """
+        Saves a task in the database.
+
+        The task's tags will be converted to lowercase and then sorted
+        alphabetically in ascending order.
+        """
+
+        for i, tag in enumerate(task.tags):
+            task.tags[i] = tag.lower()
+        task.tags.sort()
+
         with self.Session() as session:
             state = sa.inspect(task)
             if state.transient or task.id is not None:
@@ -44,7 +55,7 @@ class Database:
                 _ = session.merge(task)
             session.commit()
 
-    def list_tasks(self, filter: str = "1=1") -> Sequence[models.Task]:
+    def list_tasks(self, filter: str = "") -> Sequence[models.Task]:
         stmt = sa.select(models.Task)
         if filter:
             stmt = stmt.where(sa.text(filter))
@@ -52,9 +63,11 @@ class Database:
         with self.Session() as session:
             return session.scalars(stmt).all()
 
-    def clear_tasks(self) -> int:
+    def clear_tasks(self, filter: str = "") -> int:
         with self.Session() as session:
-            result = session.execute(sa.delete(models.Task).returning(models.Task.id))
+            result = session.execute(
+                sa.delete(models.Task).where(sa.text(filter)).returning(models.Task.id)
+            )
             deleted = len(result.fetchall())
             session.commit()
             return deleted

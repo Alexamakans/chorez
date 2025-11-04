@@ -1,11 +1,9 @@
 # plan for commands, maybe?
 
 ```plain
-tt task show <id|search>
+tt task show <filter>
 tt task add [--title TITLE] [--desc DESC] [--label LABEL ...] [--field KEY=VALUE ...]
 tt task edit <id> [--title TITLE] [--desc DESC] [--label +LABEL|-LABEL ...] [--field KEY=VALUE ...] [--field ~KEY]
-tt task close <id ...> | --filter EXPR
-tt task reopen <id ...> | --filter EXPR
 tt task rm <id ...> | --filter EXPR
 tt task export [--filter EXPR] [--columns COLS] [--format json|csv] [--out FILE]
 tt task select <id|search>

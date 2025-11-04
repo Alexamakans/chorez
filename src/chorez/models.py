@@ -1,12 +1,12 @@
 import datetime
 from enum import Enum
-from typing import final
+from typing import Any, final
 
 import sqlalchemy as sa
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
 
-class Difficulty(Enum):
+class Difficulty(str, Enum):
     CHALLENGING = "challenging"
     HARD = "hard"
     MEDIUM = "medium"
@@ -14,7 +14,7 @@ class Difficulty(Enum):
     BREEZE = "breeze"
 
 
-class Priority(Enum):
+class Priority(str, Enum):
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -23,7 +23,20 @@ class Priority(Enum):
 
 
 class Base(MappedAsDataclass, DeclarativeBase):  # pyright: ignore[reportUnsafeMultipleInheritance]
-    pass
+    """
+    Add some default properties and methods to the SQLAlchemy declarative base.
+    """
+
+    @property
+    def columns(self):
+        return [c.name for c in self.__table__.columns]  # pyright: ignore[reportAny]
+
+    @property
+    def columnitems(self) -> dict[str, Any]:  # pyright: ignore[reportExplicitAny]
+        return dict([(c, getattr(self, c)) for c in self.columns])  # pyright: ignore[reportAny]
+
+    def toDict(self) -> dict[str, Any]:  # pyright: ignore[reportExplicitAny]
+        return self.columnitems
 
 
 @final
@@ -78,6 +91,9 @@ class Task(Base):
         default=None,
         nullable=True,
     )
+
+    def pretty(self) -> str:
+        return f"Task #{self.id} [{self.name}] [Diff: {self.difficulty.value}, Prio: {self.priority.value}]"
 
 
 @final
