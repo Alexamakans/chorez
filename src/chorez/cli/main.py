@@ -1,10 +1,13 @@
 import sys
+
 from chorez.chorez import Chorez
-from chorez.cli.root_cli import RootCLI
+from chorez.cli.root import RootCLI
 
 
-def main(argv: list[str], *, chorez: Chorez) -> None:
-    parsed = RootCLI().parse_args(argv)
+def main() -> None:
+    args = sys.argv[1:]
+    chorez = Chorez()
+    parsed = RootCLI().parse_args(args)
     if hasattr(parsed, "run"):
         sys.exit(parsed.run(parsed, chorez))  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType, reportUnknownArgumentType]
     else:
@@ -12,9 +15,4 @@ def main(argv: list[str], *, chorez: Chorez) -> None:
 
 
 if __name__ == "__main__":
-
-    def mainlet() -> None:
-        chorez = Chorez()
-        main(sys.argv[1:], chorez=chorez)
-
-    mainlet()
+    main()

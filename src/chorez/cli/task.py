@@ -7,15 +7,14 @@ from typing import Self, override
 import yaml
 from tap import Tap
 
+from chorez import models
 from chorez.chorez import Chorez
-from chorez.models import Difficulty, Priority, Task
-
-EXIT_SUCCESS = 0
-EXIT_FAILURE = 1
+from chorez.cli.constants import EXIT_FAILURE, EXIT_SUCCESS
 
 
 class Format(str, Enum):
     PRETTY = "pretty"
+    PRETTY_WITH_TIMES = "with_times"
     JSON = "json"
     YAML = "yaml"
 
@@ -46,18 +45,27 @@ class TaskShow(Tap):
                     print(f"\tPrio {prio.value} (count={len(group)})")
                     for task in group:
                         print(f"\t\t{task.pretty()}")
+            case Format.PRETTY_WITH_TIMES:
+                print(f"Found {len(tasks)} tasks:")
+                by_priority = itertools.groupby(tasks, lambda e: e.priority)
+                for prio, group in by_priority:
+                    group = list(group)
+                    print(f"\tPrio {prio.value} (count={len(group)})")
+                    for task in group:
+                        print(f"{task.pretty_with_times(indent=2)}")
             case Format.JSON:
                 task_dicts = [x.toDict() for x in tasks]
                 print(json.dumps(task_dicts, sort_keys=True))
             case Format.YAML:
-                print(yaml.dump(tasks, sort_keys=True))
+                task_dicts = [x.toDict() for x in tasks]
+                print(yaml.dump(task_dicts, sort_keys=True))
         return EXIT_SUCCESS
 
 
 class TaskAdd(Tap):
     name: str  # pyright: ignore[reportUninitializedInstanceVariable]
-    priority: Priority = Priority.MEDIUM
-    difficulty: Difficulty = Difficulty.MEDIUM
+    priority: models.Priority = models.Priority.MEDIUM
+    difficulty: models.Difficulty = models.Difficulty.MEDIUM
     tags: list[str] = []
     desc: str = ""
 
@@ -67,16 +75,16 @@ class TaskAdd(Tap):
         self.add_argument(  # pyright: ignore[reportUnknownMemberType]
             "--priority",
             "-p",
-            choices=[m for m in Priority],
+            choices=[m for m in models.Priority],
             dest="priority",
-            help=f"Priority ({', '.join(m.value for m in Priority)})",
+            help=f"Priority ({', '.join(m.value for m in models.Priority)})",
         )
         self.add_argument(  # pyright: ignore[reportUnknownMemberType]
             "--difficulty",
             "-d",
-            choices=[m.value for m in Difficulty],
+            choices=[m.value for m in models.Difficulty],
             dest="difficulty",
-            help=f"Difficulty ({', '.join(m.value for m in Difficulty)})",
+            help=f"Difficulty ({', '.join(m.value for m in models.Difficulty)})",
         )
         self.add_argument(  # pyright: ignore[reportUnknownMemberType]
             "--tags",
@@ -96,7 +104,7 @@ class TaskAdd(Tap):
         self.set_defaults(run=self.run)
 
     def run(self, args: Self, chorez: Chorez) -> int:
-        task = Task(
+        task = models.Task(
             name=args.name,
             priority=args.priority,
             difficulty=args.difficulty,
@@ -111,8 +119,8 @@ class TaskEdit(Tap):
     id: int  # pyright: ignore[reportUninitializedInstanceVariable]
 
     name: str | None = None
-    priority: Priority | None = None
-    difficulty: Difficulty | None = None
+    priority: models.Priority | None = None
+    difficulty: models.Difficulty | None = None
     tags: list[str] | None = None
     desc: str | None = None
 
@@ -131,16 +139,16 @@ class TaskEdit(Tap):
         self.add_argument(  # pyright: ignore[reportUnknownMemberType]
             "--priority",
             "-p",
-            choices=[m for m in Priority],
+            choices=[m for m in models.Priority],
             dest="priority",
-            help=f"Priority ({', '.join(m.value for m in Priority)})",
+            help=f"Priority ({', '.join(m.value for m in models.Priority)})",
         )
         self.add_argument(  # pyright: ignore[reportUnknownMemberType]
             "--difficulty",
             "-d",
-            choices=[m for m in Difficulty],
+            choices=[m for m in models.Difficulty],
             dest="difficulty",
-            help=f"Difficulty ({', '.join(m.value for m in Difficulty)})",
+            help=f"Difficulty ({', '.join(m.value for m in models.Difficulty)})",
         )
         self.add_argument(  # pyright: ignore[reportUnknownMemberType]
             "--tags",
@@ -160,7 +168,7 @@ class TaskEdit(Tap):
         self.set_defaults(run=self.run)
 
     def run(self, args: Self, chorez: Chorez) -> int:
-        tasks = chorez.db.list_tasks(f"id={args.id}")
+        tasks = chorez.db.list_tasks(f"{models.Task.id.key}={args.id}")
         if len(tasks) == 0:
             print("Task not found", file=sys.stderr)
             return EXIT_FAILURE
@@ -216,21 +224,22 @@ class TaskRm(Tap):
         self.set_defaults(run=self.run)
 
     def run(self, args: Self, chorez: Chorez) -> int:
-        filter = f"id={args.id}"
+        filter = f"{models.Task.id.key}={args.id}"
         tasks = chorez.db.list_tasks(filter)
         if len(tasks) == 0:
-            print(f"Task with ID {args.id} not found")
+            print(f"Task with ID {args.id} not found", file=sys.stderr)
             return EXIT_FAILURE
         assert len(tasks) == 1
         assert chorez.db.clear_tasks(filter) == 1
-        print(f"Removed task: {tasks[0].pretty()}")
+        task = tasks[0]
+        print(f"Removed task: {task.pretty()}")
         return EXIT_SUCCESS
 
 
 class TaskCLI(Tap):
     @override
     def configure(self) -> None:
-        self.add_subparsers(dest="subcommand", required=True, help="task subparsers")  # pyright: ignore[reportUnknownMemberType]
+        self.add_subparsers(dest="subcommand", required=True, help="task subcommands")  # pyright: ignore[reportUnknownMemberType]
         self.add_subparser("show", TaskShow)  # pyright: ignore[reportUnknownMemberType]
         self.add_subparser("add", TaskAdd)  # pyright: ignore[reportUnknownMemberType]
         self.add_subparser("edit", TaskEdit)  # pyright: ignore[reportUnknownMemberType]

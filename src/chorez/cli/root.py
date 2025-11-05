@@ -1,5 +1,7 @@
 from typing import override
+
 from tap import Tap
+
 from chorez.cli.task import TaskCLI
 from chorez.cli.time import TimeCLI
 
