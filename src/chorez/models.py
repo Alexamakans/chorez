@@ -63,7 +63,8 @@ class Task(Base):
         init=False,
         back_populates="task",
         default_factory=list,
-        lazy="selectin",
+        lazy="raise_on_sql",
+        repr=False,
     )
 
     priority: Mapped[Priority] = mapped_column(
@@ -128,7 +129,8 @@ class TimeEntry(Base):
     task: Mapped["Task"] = relationship(
         init=False,
         back_populates="time_entries",
-        lazy="selectin",
+        lazy="raise_on_sql",
+        repr=False,
     )
     start: Mapped[datetime.datetime] = mapped_column(
         sa.DateTime(),

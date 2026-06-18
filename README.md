@@ -1,10 +1,20 @@
 # plan for commands, maybe?
 
 ```plain
-tt task show <filter>
-tt task add [--title TITLE] [--desc DESC] [--label LABEL ...] [--field KEY=VALUE ...]
-tt task edit <id> [--title TITLE] [--desc DESC] [--label +LABEL|-LABEL ...] [--field KEY=VALUE ...] [--field ~KEY]
+tt task show
+    [--filter EXPR]
+    [--groupby KEY ...]
+    [--format {pretty, with_times, json, yaml}]
+tt task add <--name NAME> [--desc DESC] [--tags LABEL ...]
+tt task edit <id> <--name NAME> [--desc DESC] [--tags +TAG|-TAG ...]
 tt task rm <id ...> | --filter EXPR
+
+tt time show
+    [-s START | --start START]
+    [-e END | --end END]
+    [--filter EXPR]
+    [--groupby KEY ...]
+    [--format {pretty, with_task, json, yaml}]
 
 tt time start [<task>] [-s START | --start START] [--note NOTE]
 tt time stop [-e END | --end END] [--note NOTE]

@@ -7,7 +7,7 @@ from typing import Self, override
 import yaml
 from tap import Tap
 
-from chorez import models
+from chorez import models, util
 from chorez.chorez import Chorez
 from chorez.cli.constants import EXIT_FAILURE, EXIT_SUCCESS
 
@@ -22,6 +22,7 @@ class Format(str, Enum):
 class TaskShow(Tap):
     format: Format = Format.PRETTY
     filter: str = ""
+    groupby: list[str] = ["priority"]
 
     @override
     def configure(self) -> None:
@@ -32,19 +33,18 @@ class TaskShow(Tap):
             help=f"Format to output as: {', '.join(m.value for m in Format)}",
         )
         self.add_argument("--filter", dest="filter", help="sqlalchemy where clause")  # pyright: ignore[reportUnknownMemberType]
+        self.add_argument("--groupby", "-g", nargs="+", dest="groupby")  # pyright: ignore[reportUnknownMemberType]
         self.set_defaults(run=self.run)
 
     def run(self, args: Self, chorez: Chorez) -> int:
         tasks = chorez.db.list_tasks(args.filter)
         match args.format:
             case Format.PRETTY:
-                print(f"Found {len(tasks)} tasks:")
-                by_priority = itertools.groupby(tasks, lambda e: e.priority)
-                for prio, group in by_priority:
-                    group = list(group)
-                    print(f"\tPrio {prio.value} (count={len(group)})")
-                    for task in group:
-                        print(f"\t\t{task.pretty()}")
+
+                def task_stringer(task: models.Task) -> str:
+                    return task.pretty()
+
+                util.print_grouped(tasks, keys=args.groupby, item_str=task_stringer)
             case Format.PRETTY_WITH_TIMES:
                 print(f"Found {len(tasks)} tasks:")
                 by_priority = itertools.groupby(tasks, lambda e: e.priority)
@@ -215,24 +215,30 @@ class TaskEdit(Tap):
 
 
 class TaskRm(Tap):
-    id: int  # pyright: ignore[reportUninitializedInstanceVariable]
+    ids: list[int]  # pyright: ignore[reportUninitializedInstanceVariable]
 
     @override
     def configure(self) -> None:
-        self.add_argument("--id", "-i", dest="id", help="The task to remove's ID")  # pyright: ignore[reportUnknownMemberType]
+        self.add_argument(  # pyright: ignore[reportUnknownMemberType]
+            "--id", "-i", nargs="+", dest="ids", help="The task to remove's ID"
+        )
 
         self.set_defaults(run=self.run)
 
     def run(self, args: Self, chorez: Chorez) -> int:
-        filter = f"{models.Task.id.key}={args.id}"
-        tasks = chorez.db.list_tasks(filter)
-        if len(tasks) == 0:
-            print(f"Task with ID {args.id} not found", file=sys.stderr)
-            return EXIT_FAILURE
-        assert len(tasks) == 1
-        assert chorez.db.clear_tasks(filter) == 1
-        task = tasks[0]
-        print(f"Removed task: {task.pretty()}")
+        to_remove: list[models.Task] = []
+        for id in args.ids:
+            filter = f"{models.Task.id.key}={id}"
+            tasks = chorez.db.list_tasks(filter)
+            if len(tasks) == 0:
+                print(f"Task with ID {id} not found", file=sys.stderr)
+                return EXIT_FAILURE
+            assert len(tasks) == 1
+            to_remove.append(tasks[0])
+
+        for task in to_remove:
+            assert chorez.db.clear_tasks(f"{models.Task.id.key}={task.id}") == 1
+            print(f"Removed task and its associated time entries: {task.pretty()}")
         return EXIT_SUCCESS
 
 

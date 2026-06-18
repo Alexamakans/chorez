@@ -3,7 +3,7 @@ from typing import Any, final
 
 import sqlalchemy as sa
 from sqlalchemy import event
-from sqlalchemy.orm import InstrumentedAttribute, sessionmaker
+from sqlalchemy.orm import InstrumentedAttribute, selectinload, sessionmaker
 
 from chorez import models
 
@@ -70,7 +70,7 @@ class Database:
         self,
         filter: str = "",
     ) -> Sequence[models.Task]:
-        stmt = sa.select(models.Task)
+        stmt = sa.select(models.Task).options(selectinload(models.Task.time_entries))
         if filter:
             stmt = stmt.where(sa.text(filter))
         stmt = stmt.order_by(models.Task.id.desc())
@@ -82,9 +82,9 @@ class Database:
             result = session.execute(
                 sa.delete(models.Task).where(sa.text(filter)).returning(models.Task.id)
             )
-            deleted = len(result.fetchall())
+            num_deleted = len(result.fetchall())
             session.commit()
-            return deleted
+            return num_deleted
 
     def save_time_entry(self, time_entry: models.TimeEntry) -> None:
         """
@@ -125,7 +125,7 @@ class Database:
         self,
         filter: str = "",
     ) -> Sequence[models.TimeEntry]:
-        stmt = sa.select(models.TimeEntry)
+        stmt = sa.select(models.TimeEntry).options(selectinload(models.TimeEntry.task))
         if filter:
             stmt = stmt.where(sa.text(filter))
         stmt = stmt.order_by(models.TimeEntry.start.desc())
